@@ -37,6 +37,26 @@ def add():
         return db_add(person)
     app.logger.error("Request body is empty")
     return Response(status=404)
+from flask import jsonify
+
+@app.route("/health")
+def health():
+    try:
+        app.logger.info("Application is running")
+        status = {
+            "status": "healthy",
+            "components": {
+                "application": "running"
+            }
+        }
+        return jsonify(status), 200
+    except Exception as e:
+        status = {
+            "status": "unhealthy",
+            "error": str(e)
+        }
+        return jsonify(status), 503
+
 
 if __name__ == "__main__":
     app.run(host='0.0.0.0', port=5000)
