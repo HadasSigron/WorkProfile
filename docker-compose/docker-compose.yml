@@ -1,0 +1,43 @@
+version: "3.9"
+
+services:
+  nginx:
+    image: nginx:1.27-alpine
+    depends_on:
+      - app
+    ports:
+      - "8080:80"              # ניגשים מהוסט ל- http://localhost:8080
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    networks: [frontend, backend]
+
+  app:
+    image: ${DOCKERHUB_USERNAME:-local}/workprofile:latest
+    environment:
+      - DB_HOST=mysql
+      - DB_USER=flaskapp
+      - DB_PASS=flaskapp
+      - DB_NAME=exampleDb
+    expose:
+      - "5000"                 # חושף ל-nginx בתוך הרשת
+    networks: [backend]
+
+  mysql:
+    image: mysql:8.0
+    environment:
+      - MYSQL_DATABASE=exampleDb
+      - MYSQL_USER=flaskapp
+      - MYSQL_PASSWORD=flaskapp
+      - MYSQL_ROOT_PASSWORD=changeme
+    volumes:
+      - ../init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - mysql_data:/var/lib/mysql  # התמדה בזמן בדיקות
+    networks: [backend]
+
+networks:
+  frontend: {}
+  backend: {}
+
+volumes:
+  mysql_data: {}
+

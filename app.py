@@ -1,4 +1,4 @@
-#from cgitb import handler
+from cgitb import handler
 from flask import Flask, render_template, request, Response
 from os import environ
 from dbcontext import db_data, db_delete, db_add, health_check
@@ -35,7 +35,7 @@ def add():
         app.logger.info("Request to add person with body: %s", body)
         person = Person(0, body["firstName"], body["lastName"], body["age"], body["address"], body["workplace"])
         return db_add(person)
-    app.logger.error("Request body is empty")
+    app.logger.error("Request body is ggggempty")
     return Response(status=404)
 from flask import jsonify
 
