@@ -6,3 +6,4 @@ class Person:
         self.age = age
         self.address = address
         self.workplace = workplace
+
