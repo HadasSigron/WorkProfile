@@ -1,25 +1,21 @@
 # Python
 __pycache__/
-*.py[cod]
-pyvenv.cfg
+*.pyc
+*.pyo
+*.pyd
 
-# Flask
-instance/
+# Virtual env
+venv/
 .env
 
-# IDE
+# Editor/IDE
 .vscode/
 .idea/
 
-# Logs
-*.log
+# OS
+.DS_Store
+Thumbs.db
 
-# Dependency directories
-venv/
-env/
-Include/
-Lib/
-Scripts/
+# Kubernetes temp
+*.save
 
-# General
-.devcontainer/
