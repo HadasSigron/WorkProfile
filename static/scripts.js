@@ -1,121 +1,120 @@
-/**
- * @param {HTMLDivElement} div
- * @param {number} id 
- */
-function handlePersonClick(div, id) {
-    const cssClass = div.className;
-    if (cssClass === "person-disabled") { return; }
-    fetch(`${backend}/delete/${id}`, { method: "DELETE" })
-        .then(res => {
-            if (res.status === 200) {
-                const parent = div.parentElement;
-                parent.removeChild(div);
-                if (parent.children.length === 0) {
-                    const grandparent = parent.parentElement;
-                    grandparent.removeChild(parent);
-                }
-            } else {
-                alert("Something went wrong");
-            }
-        })
-        .catch(err => console.log(err));
-}
+/* static/scripts.js – fixed for proper form submit and UI updates */
 
-function handleClick() {
-    document.getElementById('personModal').style.display = 'block';
-}
+(function () {
+  /* global backend */
+  const base =
+    typeof backend !== "undefined" && backend && backend !== "None" ? backend : "";
 
-function closeModal() {
-    document.getElementById('personModal').style.display = 'none';
-}
+  // ===== Utilities =====
+  const qs  = (sel) => document.querySelector(sel);
 
-/**
- * @param {Event} event 
- */
-window.onclick = function (event) {
-    let modal = document.getElementById('personModal');
-    if (event.target == modal) {
-        modal.style.display = 'none';
+  // ===== Modal controls (used by inline HTML handlers) =====
+  function openModal() {
+    const m = qs("#personModal");
+    if (m) m.style.display = "block";
+  }
+  function closeModal() {
+    const m = qs("#personModal");
+    if (m) m.style.display = "none";
+    const form = qs("#addPersonForm");
+    if (form) form.reset();
+  }
+  window.handleClick = openModal;
+  window.closeModal  = closeModal;
+
+  // Close modal on backdrop click / ESC
+  window.addEventListener("click", (e) => {
+    const m = qs("#personModal");
+    if (m && e.target === m) closeModal();
+  });
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeModal();
+  });
+
+  // ===== Delete card click (inline handler in HTML) =====
+  /**
+   * @param {HTMLDivElement} div
+   * @param {number} id
+   */
+  window.handlePersonClick = async function (div, id) {
+    const cssClass = div?.className || "";
+    if (cssClass === "person-disabled") return;
+    if (!id) return;
+
+    const doRemoveInDom = () => {
+      const parent = div.parentElement;
+      if (!parent) return;
+      parent.removeChild(div);
+      if (parent.children.length === 0) {
+        const grandparent = parent.parentElement;
+        if (grandparent) grandparent.removeChild(parent);
+      }
+    };
+
+    try {
+      // First try DELETE, then gracefully fallback to POST (some servers only allow POST)
+      let res = await fetch(`${base}/delete/${id}`, { method: "DELETE" });
+      if (res.status === 405 || res.status === 404) {
+        res = await fetch(`${base}/delete/${id}`, { method: "POST" });
+      }
+      if (res.ok) {
+        doRemoveInDom();
+      } else {
+        alert("Delete failed");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Network error");
     }
-}
+  };
 
-// Handle form submission
-document.getElementById('addPersonForm').addEventListener('submit', function (event) {
-    event.preventDefault();
-    // Collect form data
-    const firstName = document.getElementById('firstName').value;
-    const lastName = document.getElementById('lastName').value;
-    const age = document.getElementById('age').value;
-    const workplace = document.getElementById('workplace').value;
-    const address = document.getElementById('address').value;
+  // ===== Add-person form submit =====
+  document.addEventListener("DOMContentLoaded", () => {
+    const form = qs("#addPersonForm");
+    if (!form) return;
 
-    // send put request with person object in body
-    fetch(`${backend}/add`, {
-        method: "PUT",
-        headers: {
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-            firstName,
-            lastName,
-            age,
-            workplace,
-            address
-        })
-    }).then(res => {
-        if (res.status === 200) {
-            // Add new person to the DOM
-            res.json().then(id => {
-                // Create new person div
-                const newPerson = document.createElement('div');
-                newPerson.className = "person";
-                newPerson.onclick = function () {
-                    handlePersonClick(this, id);
-                };
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
 
-                // Create new person name h3
-                const newPersonName = document.createElement('h3');
-                newPersonName.innerHTML = `${firstName} ${lastName}`;
+      // Collect form values by ID
+      const val = (id) => (qs(`#${id}`)?.value ?? "").toString().trim();
+      const firstName = val("firstName");
+      const lastName  = val("lastName");
+      const age       = val("age");
+      const address   = val("address");
+      const workplace = val("workplace");
 
-                // Create new person age p
-                const newPersonAge = document.createElement('p');
-                newPersonAge.innerHTML = `Age: ${age}`;
+      // Send as application/x-www-form-urlencoded (what the Flask endpoint expects)
+      const body = new URLSearchParams();
+      body.append("firstName", firstName);
+      body.append("lastName",  lastName);
+      body.append("age",       age);
+      body.append("address",   address);
+      body.append("workplace", workplace);
 
-                // Create new person address p
-                const newPersonAddress = document.createElement('p');
-                newPersonAddress.innerHTML = `Address: ${workplace}`;
+      try {
+        const res = await fetch(`${base}/add`, {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body
+        });
 
-                // Create new person workplace div
-                const newPersonWorkplace = document.createElement('p');
-                newPersonWorkplace.innerHTML = `Workplace: ${address}`;
-
-                // Append all new divs to the new person div
-                newPerson.appendChild(newPersonName);
-                newPerson.appendChild(newPersonAge);
-                newPerson.appendChild(newPersonAddress);
-                newPerson.appendChild(newPersonWorkplace);
-
-                // Get the tableContainer div
-                const people = document.getElementById('tableContainer');
-
-                // get the last child of the tableContainer div
-                let parent = people.children[people.children.length - 1];
-
-                // check if parent has 3 children. If it does, create a new one, otherwise use the existing one
-                if (parent.childElementCount === 3) {
-                    parent = document.createElement('div');
-                    parent.className = "container";
-                    people.appendChild(parent);
-                }
-
-                // Append new person div to the parent div
-                parent.appendChild(newPerson);
-            });
-        } else {
-            alert("Something went wrong");
+        if (!res.ok) {
+          const t = await res.text().catch(() => "");
+          console.error("Save failed:", res.status, t);
+          alert("Something went wrong");
+          return;
         }
-    })
-        .catch(err => console.log(err));
 
-    closeModal();
-});
+        // Server returns plain text (id) or redirects; reload to show latest list
+        closeModal();
+        window.location.reload();
+      } catch (err) {
+        console.error(err);
+        alert("Network error");
+      }
+    });
+  });
+
+})();
+
