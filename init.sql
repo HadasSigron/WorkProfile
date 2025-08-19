@@ -1,22 +1,39 @@
-CREATE DATABASE IF NOT EXISTS `exampleDb`;
-GRANT ALL PRIVILEGES ON `exampleDb` TO 'flaskapp'@'%' IDENTIFIED BY 'flaskapp' WITH GRANT OPTION;
+#CREATE DATABASE IF NOT EXISTS `exampleDb`;
+#GRANT ALL PRIVILEGES ON `exampleDb` TO 'flaskapp'@'%' IDENTIFIED BY 'flaskapp' WITH GRANT OPTION;
+#FLUSH PRIVILEGES;
+
+#USE exampleDb;
+
+#CREATE TABLE IF NOT EXISTS `people` (
+#  `id` int(11) NOT NULL AUTO_INCREMENT,
+#  `firstname` varchar(100) NOT NULL,
+#  `lastname` varchar(100) NOT NULL,
+#  `age` int(11) NOT NULL,
+#  `address` varchar(100) NOT NULL,
+#  `workplace` varchar(100) NOT NULL,
+#  PRIMARY KEY (`id`),
+#  UNIQUE KEY `id` (`id`)
+#) ENGINE=MyISAM AUTO_INCREMENT=10001;
+
+
+#INSERT INTO `people` (`firstname`, `lastname`, `age`, `address`, `workplace`) VALUES
+#('John', 'Doe', 30, '123 Main St, New York, NY 10030', 'Google'),
+#('Jane', 'Doe', 28, '123 Main St, New York, NY 10030', 'Microsoft'),
+#('Jack', 'Doe', 25, '123 Main St, New York, NY 10030', 'Amazon');
+CREATE DATABASE IF NOT EXISTS exampleDb;
+
+CREATE USER IF NOT EXISTS 'flaskapp'@'%' IDENTIFIED BY 'flaskapp';
+GRANT ALL PRIVILEGES ON exampleDb.* TO 'flaskapp'@'%';
 FLUSH PRIVILEGES;
 
 USE exampleDb;
 
-CREATE TABLE IF NOT EXISTS `people` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `firstname` varchar(100) NOT NULL,
-  `lastname` varchar(100) NOT NULL,
-  `age` int(11) NOT NULL,
-  `address` varchar(100) NOT NULL,
-  `workplace` varchar(100) NOT NULL,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `id` (`id`)
-) ENGINE=MyISAM AUTO_INCREMENT=10001;
 
+CREATE TABLE IF NOT EXISTS person (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  first_name VARCHAR(100) NOT NULL,
+  last_name  VARCHAR(100) NOT NULL,
+  email      VARCHAR(255) NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-INSERT INTO `people` (`firstname`, `lastname`, `age`, `address`, `workplace`) VALUES
-('John', 'Doe', 30, '123 Main St, New York, NY 10030', 'Google'),
-('Jane', 'Doe', 28, '123 Main St, New York, NY 10030', 'Microsoft'),
-('Jack', 'Doe', 25, '123 Main St, New York, NY 10030', 'Amazon');
