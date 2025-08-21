@@ -39,8 +39,8 @@ jobs:
       - name: Generate image tag
         id: generate_tag
         run: |
-          TAG="build-$(date +%Y%m%d)-${GITHUB_SHA::7}"
-          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          TAG="build-$(date +%Y%m%d)-$(echo $GITHUB_SHA | cut -c1-7)"
+          echo "tag=${TAG}" >> $GITHUB_OUTPUT
           echo "Generated tag: ${TAG}"
 
   e2e-tests:
