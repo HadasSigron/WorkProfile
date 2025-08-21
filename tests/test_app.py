@@ -1,46 +1,42 @@
 import sys
 import types
-import importlib
+import importlib.util
+from pathlib import Path
 import pytest
 
 @pytest.fixture
 def app_module(monkeypatch):
-    # מכניסים מודול dbcontext מזויף ל-sys.modules לפני ה-import של app
+    # 1) מזייפים dbcontext לפני טעינת app.py
     fake_db = types.ModuleType("dbcontext")
     fake_db.health_check = lambda: True
-    # שמים מצייני מקום לשאר הפונקציות; נחליף אותן אחרי import
-    fake_db.db_data = lambda: []
-    fake_db.db_add = lambda person: None
-    fake_db.db_delete = lambda _id: None
-
+    fake_db.db_data = lambda: [
+        {"id": 1, "firstName": "Alice", "lastName": "Doe", "age": 30, "address": "X", "workplace": "Y"}
+    ]
+    # נחזיר Response מתאים כפי שהאפליקציה מצפה
     sys.modules["dbcontext"] = fake_db
 
-    # אם app כבר מוטען, נוריד אותו כדי לייבא מחדש עם ה-fake
-    if "app" in sys.modules:
-        del sys.modules["app"]
+    # 2) טוענים את app.py לפי נתיב (עוקף PYTHONPATH)
+    repo_root = Path(__file__).resolve().parents[1]
+    app_path = repo_root / "app.py"
+    spec = importlib.util.spec_from_file_location("app", app_path)
+    app_mod = importlib.util.module_from_spec(spec)
+    sys.modules["app"] = app_mod  # לאפשר ייבוא יחסי
+    assert spec.loader is not None
+    spec.loader.exec_module(app_mod)
 
-    app_mod = importlib.import_module("app")
-
-    # כעת נחליף את הפונקציות במרחב של מודול app לפונקציות מזויפות "אמיתיות"
-    def fake_db_data():
-        return [
-            {"id": 1, "firstName": "Alice", "lastName": "Doe", "age": 30, "address": "X", "workplace": "Y"}
-        ]
-
+    # 3) אחרי טעינת המודול, מחליפים את פונקציות ה-DB במוקים ספציפיים
     def fake_db_add(person):
-        # מחזיר Response 201 כמו API תקין
         return app_mod.Response(status=201)
 
     def fake_db_delete(_id: int):
-        # מחזיר Response 204
         return app_mod.Response(status=204)
 
-    monkeypatch.setattr(app_mod, "db_data", fake_db_data, raising=True)
     monkeypatch.setattr(app_mod, "db_add", fake_db_add, raising=True)
     monkeypatch.setattr(app_mod, "db_delete", fake_db_delete, raising=True)
+    monkeypatch.setattr(app_mod, "db_data", fake_db.db_data, raising=True)
 
-    # לא רוצים באמת לרנדר קובץ תבנית - מחליפים render_template להחזיר טקסט
-    monkeypatch.setattr(app_mod, "render_template", lambda *_args, **_kw: "OK", raising=True)
+    # 4) לא מרנדרים Jinja בפועל
+    monkeypatch.setattr(app_mod, "render_template", lambda *_a, **_k: "OK", raising=True)
 
     return app_mod
 
@@ -69,7 +65,7 @@ def test_add_ok(client):
 
 
 def test_add_missing_body_returns_404(client):
-    # ללא JSON כלל → בקוד שלך זה אמור להחזיר 404
+    # אין JSON -> בקוד שלך זה מחזיר 404
     resp = client.post("/add", data="", content_type="application/json")
     assert resp.status_code == 404
 
@@ -79,7 +75,6 @@ def test_delete_ok(client):
     assert resp.status_code == 204
 
 
-def test_health_exists_and_ok(client):
-    # בהנחה שיש ראוט /health שמחזיר 200
+def test_health_ok(client):
     resp = client.get("/health")
     assert resp.status_code == 200
