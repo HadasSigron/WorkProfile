@@ -75,7 +75,6 @@ jobs:
       - name: Build & Start full stack (docker-compose)
         run: |
           docker-compose up -d --build
-          # אם ה-compose ממפה 8080:5000 - השהייה קצרה ל-startup
           sleep 50
 
       - name: Smoke: "/" endpoint (compose -> 8080)
@@ -160,7 +159,6 @@ jobs:
         run: |
           echo "=== CD: Deploying MySQL Infrastructure ==="
           kubectl apply -f k8s/mysql-secret.yaml
-          # init.sql כ-ConfigMap (idempotent)
           kubectl create configmap mysql-initdb-config --from-file=init.sql=init.sql -o yaml --dry-run=client | kubectl apply -f -
           kubectl apply -f k8s/mysql-statefulset.yaml
           kubectl apply -f k8s/mysql-service.yaml
@@ -172,21 +170,13 @@ jobs:
         run: |
           TAG="${{ needs.build-test.outputs.tag }}"
           IMAGE="docker.io/${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${TAG}"
-
-          echo "=== CD: Deploying Workprofile Application ==="
           echo "Using image: ${IMAGE}"
-          # החדרת ה-image לתבנית
           sed -i "s|IMAGE_PLACEHOLDER|${IMAGE}|g" k8s/workprofile-deployment.yaml
-
-          # ודאי שה-deployment משתמש ב-imagePullSecrets: dockerhub
-          # אם לא, נעדכן פאטצ' קטן (idempotent):
           kubectl apply -f k8s/workprofile-configmap.yaml
           kubectl apply -f k8s/workprofile-deployment.yaml
           kubectl apply -f k8s/workprofile-service.yaml
-
           kubectl wait --for=condition=available deployment/workprofile --timeout=300s
           kubectl wait --for=condition=ready pod -l app=workprofile --timeout=300s
-
           kubectl get pods,svc,deployment -l app=workprofile
 
       - name: Verify stack
@@ -194,18 +184,13 @@ jobs:
           echo "=== CD: Verifying Stack ==="
           kubectl get all
           echo ""
-
-          echo "Testing MySQL connectivity via Secret creds..."
           kubectl run mysql-client --image=mysql:5.7 -it --rm --restart=Never -- \
             mysql -h mysql-service -u flaskapp -pflaskapp -D exampleDb -e "SHOW DATABASES;"
-
-          echo "Port-forward app and test..."
           kubectl port-forward deployment/workprofile 5000:5000 &
           PF_PID=$!
           sleep 20
           curl -f http://localhost:5000/ && curl -f http://localhost:5000/health
           kill $PF_PID
-
           echo "SUCCESS: K8s smoke passed"
 
       - name: Show tips
