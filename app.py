@@ -28,7 +28,7 @@ def delete(id: int):
     app.logger.info("Request to delete person with id: %s", id)
     return db_delete(id)
 
-@app.route("/add", methods=["PUT"])
+@app.route("/add", methods=["PUT","POST"])
 def add():
     body = request.json
     if body is not None:
