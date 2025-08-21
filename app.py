@@ -1,5 +1,4 @@
-from cgitb import handler
-from flask import Flask, render_template, request, Response
+from flask import Flask, render_template, request, Response, jsonify
 from os import environ
 from dbcontext import db_data, db_delete, db_add, health_check
 from person import Person
@@ -7,9 +6,9 @@ import logging
 
 app = Flask(__name__)
 app.logger.setLevel(logging.INFO)
-handler = logging.StreamHandler()
-handler.setLevel(logging.INFO)
-app.logger.addHandler(handler)
+log_handler = logging.StreamHandler()
+log_handler.setLevel(logging.INFO)
+app.logger.addHandler(log_handler)
 
 host_name = environ.get("HOSTNAME")
 if not health_check():
@@ -37,7 +36,6 @@ def add():
         return db_add(person)
     app.logger.error("Request body is ggggempty")
     return Response(status=404)
-from flask import jsonify
 
 @app.route("/health")
 def health():
