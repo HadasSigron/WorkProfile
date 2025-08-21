@@ -6,7 +6,7 @@ import pytest
 
 @pytest.fixture
 def app_module(monkeypatch):
-    # --- Fake dbcontext (כל הפונקציות שה-app מייבא בזמן import) ---
+    # --- Fake dbcontext ---
     fake_db = types.ModuleType("dbcontext")
     fake_db.health_check = lambda: True
     fake_db.db_data = lambda: [
@@ -16,8 +16,9 @@ def app_module(monkeypatch):
     fake_db.db_delete = lambda _id: None
     sys.modules["dbcontext"] = fake_db
 
-    # --- Fake person.Person כדי שה-import יצליח וגם הקריאה בקוד /add ---
+    # --- Fake person.Person ---
     fake_person = types.ModuleType("person")
+
     class _Person:
         def __init__(self, _id, firstName, lastName, age, address, workplace):
             self.id = _id
@@ -26,10 +27,11 @@ def app_module(monkeypatch):
             self.age = age
             self.address = address
             self.workplace = workplace
+
     fake_person.Person = _Person
     sys.modules["person"] = fake_person
 
-    # --- טוענים את app.py לפי נתיב (עוקף PYTHONPATH) ---
+    # --- Load app.py by path ---
     repo_root = Path(__file__).resolve().parents[1]
     app_path = repo_root / "app.py"
     spec = importlib.util.spec_from_file_location("app", app_path)
@@ -38,7 +40,7 @@ def app_module(monkeypatch):
     assert spec.loader is not None
     spec.loader.exec_module(app_mod)
 
-    # --- מחליפים פונקציות DB להחזיר Response אמיתי לאחר הטעינה ---
+    # --- Replace DB funcs with responses ---
     def fake_db_add(person):
         return app_mod.Response(status=201)
 
@@ -49,7 +51,7 @@ def app_module(monkeypatch):
     monkeypatch.setattr(app_mod, "db_delete", fake_db_delete, raising=True)
     monkeypatch.setattr(app_mod, "db_data", fake_db.db_data, raising=True)
 
-    # --- לא לרנדר Jinja בפועל ---
+    # --- Bypass Jinja rendering ---
     monkeypatch.setattr(app_mod, "render_template", lambda *_a, **_k: "OK", raising=True)
 
     return app_mod
