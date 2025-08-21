@@ -6,50 +6,212 @@ on:
   workflow_dispatch:
 
 env:
-  DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
   IMAGE_NAME: workprofile
 
 jobs:
-  ci-cd-pipeline:
+  build-test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    outputs:
+      tag: ${{ steps.generate-tag.outputs.tag }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.10 (with pip cache)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest flake8
+
+      - name: Lint & Unit tests
+        run: |
+          echo "=== Running flake8 ==="
+          flake8 .
+          echo "=== Running Unit Tests ==="
+          pytest --disable-warnings tests/test_app.py
+
+      - name: Generate image tag
+        id: generate-tag
+        run: |
+          TAG="build-$(date +%Y%m%d)-${GITHUB_SHA::7}"
+          echo "tag=${TAG}" >> $GITHUB_OUTPUT
+          echo "Generated tag: ${TAG}"
+
+  e2e-tests:
+    needs: build-test
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Generate image tag
-      id: generate-tag
-      run: |
-        TAG="build-$(date +%Y%m%d)-${GITHUB_SHA::7}"
-        echo "tag=${TAG}" >> $GITHUB_OUTPUT
-        echo "Generated tag: ${TAG}"
+      - name: Set up Python 3.10 (with pip cache)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
 
-    - name: Log in to Docker Hub
-      uses: docker/login-action@v3
-      with:
-        username: ${{ env.DOCKERHUB_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Install test deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install requests
 
-    - name: Build Docker image
-      run: |
-        TAG=${{ steps.generate-tag.outputs.tag }}
-        docker build -t ${{ env.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${TAG} .
-        docker tag ${{ env.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${TAG} ${{ env.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
+      - name: Install Docker Compose
+        run: |
+          sudo curl -L "https://github.com/docker/compose/releases/download/v2.38.1/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+          sudo chmod +x /usr/local/bin/docker-compose
+          docker-compose version
 
-    - name: Run container for testing
-      run: |
-        docker run -d -p 5000:5000 --name workprofile-test ${{ env.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
-        sleep 5
+      - name: Build & Start full stack (docker-compose)
+        run: |
+          docker-compose up -d --build
+          # אם ה-compose ממפה 8080:5000 - השהייה קצרה ל-startup
+          sleep 50
 
-    - name: Test root endpoint
-      run: curl --fail http://localhost:5000/
+      - name: Smoke: "/" endpoint (compose -> 8080)
+        run: curl --fail http://localhost:8080/
 
-    - name: Test /health endpoint
-      run: curl --fail http://localhost:5000/health
+      - name: Smoke: "/health" endpoint
+        run: curl --fail http://localhost:8080/health
 
-    - name: Push image to Docker Hub
-      run: |
-        TAG=${{ steps.generate-tag.outputs.tag }}
-        docker push ${{ env.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${TAG}
-        docker push ${{ env.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
+      - name: Run E2E tests script
+        run: |
+          python tests/e2e_tests.py
+
+      - name: Compose logs (on failure)
+        if: failure()
+        run: |
+          docker-compose ps
+          docker-compose logs workprofile || true
+          docker-compose logs mysql || true
+
+      - name: Compose cleanup
+        if: always()
+        run: |
+          docker-compose down --volumes --remove-orphans
+
+  push-image:
+    needs:
+      - build-test
+      - e2e-tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build Docker image
+        run: |
+          TAG="${{ needs.build-test.outputs.tag }}"
+          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${TAG} .
+          docker tag  ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${TAG} \
+                      ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
+
+      - name: Push Docker images
+        run: |
+          TAG="${{ needs.build-test.outputs.tag }}"
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${TAG}
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
+
+  deploy-k8s:
+    needs:
+      - build-test
+      - push-image
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Create kind cluster (test)
+        run: |
+          echo "=== CD: Creating Test Environment ==="
+          curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.20.0/kind-linux-amd64
+          chmod +x ./kind && sudo mv ./kind /usr/local/bin/kind
+          kind create cluster --wait 300s
+          kubectl cluster-info
+          kubectl get nodes
+
+      - name: Create imagePullSecret (Docker Hub)
+        run: |
+          kubectl create secret docker-registry dockerhub \
+            --docker-server=https://index.docker.io/v1/ \
+            --docker-username=${{ secrets.DOCKERHUB_USERNAME }} \
+            --docker-password=${{ secrets.DOCKERHUB_TOKEN }} \
+            --docker-email=example@example.com
+
+      - name: Deploy MySQL infra
+        run: |
+          echo "=== CD: Deploying MySQL Infrastructure ==="
+          kubectl apply -f k8s/mysql-secret.yaml
+          # init.sql כ-ConfigMap (idempotent)
+          kubectl create configmap mysql-initdb-config --from-file=init.sql=init.sql -o yaml --dry-run=client | kubectl apply -f -
+          kubectl apply -f k8s/mysql-statefulset.yaml
+          kubectl apply -f k8s/mysql-service.yaml
+          kubectl wait --for=condition=ready pod/mysql-0 --timeout=300s
+          kubectl get pods,svc,statefulset -l app=mysql
+          kubectl get pvc
+
+      - name: Deploy Workprofile app (image from Docker Hub)
+        run: |
+          TAG="${{ needs.build-test.outputs.tag }}"
+          IMAGE="docker.io/${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${TAG}"
+
+          echo "=== CD: Deploying Workprofile Application ==="
+          echo "Using image: ${IMAGE}"
+          # החדרת ה-image לתבנית
+          sed -i "s|IMAGE_PLACEHOLDER|${IMAGE}|g" k8s/workprofile-deployment.yaml
+
+          # ודאי שה-deployment משתמש ב-imagePullSecrets: dockerhub
+          # אם לא, נעדכן פאטצ' קטן (idempotent):
+          kubectl apply -f k8s/workprofile-configmap.yaml
+          kubectl apply -f k8s/workprofile-deployment.yaml
+          kubectl apply -f k8s/workprofile-service.yaml
+
+          kubectl wait --for=condition=available deployment/workprofile --timeout=300s
+          kubectl wait --for=condition=ready pod -l app=workprofile --timeout=300s
+
+          kubectl get pods,svc,deployment -l app=workprofile
+
+      - name: Verify stack
+        run: |
+          echo "=== CD: Verifying Stack ==="
+          kubectl get all
+          echo ""
+
+          echo "Testing MySQL connectivity via Secret creds..."
+          kubectl run mysql-client --image=mysql:5.7 -it --rm --restart=Never -- \
+            mysql -h mysql-service -u flaskapp -pflaskapp -D exampleDb -e "SHOW DATABASES;"
+
+          echo "Port-forward app and test..."
+          kubectl port-forward deployment/workprofile 5000:5000 &
+          PF_PID=$!
+          sleep 20
+          curl -f http://localhost:5000/ && curl -f http://localhost:5000/health
+          kill $PF_PID
+
+          echo "SUCCESS: K8s smoke passed"
+
+      - name: Show tips
+        run: |
+          TAG="${{ needs.build-test.outputs.tag }}"
+          echo "Image pushed to Docker Hub:"
+          echo "  docker.io/${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${TAG}"
+          echo "  docker.io/${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest"
 
