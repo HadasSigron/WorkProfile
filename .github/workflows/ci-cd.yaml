@@ -117,14 +117,14 @@ jobs:
 
       - name: Build Docker image
         run: |
-          TAG="${{ needs.build-test.outputs.tag }}"
+          TAG="${{ needs['build-test'].outputs.tag }}"
           docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${TAG} .
           docker tag  ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${TAG} \
                       ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
 
       - name: Push Docker images
         run: |
-          TAG="${{ needs.build-test.outputs.tag }}"
+          TAG="${{ needs['build-test'].outputs.tag }}"
           docker push ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${TAG}
           docker push ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
 
@@ -168,7 +168,7 @@ jobs:
 
       - name: Deploy Workprofile app (image from Docker Hub)
         run: |
-          TAG="${{ needs.build-test.outputs.tag }}"
+          TAG="${{ needs['build-test'].outputs.tag }}"
           IMAGE="docker.io/${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${TAG}"
           echo "Using image: ${IMAGE}"
           sed -i "s|IMAGE_PLACEHOLDER|${IMAGE}|g" k8s/workprofile-deployment.yaml
@@ -195,7 +195,7 @@ jobs:
 
       - name: Show tips
         run: |
-          TAG="${{ needs.build-test.outputs.tag }}"
+          TAG="${{ needs['build-test'].outputs.tag }}"
           echo "Image pushed to Docker Hub:"
           echo "  docker.io/${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${TAG}"
           echo "  docker.io/${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest"
