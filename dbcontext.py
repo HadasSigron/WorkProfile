@@ -1,4 +1,3 @@
-from unittest import result
 import mysql.connector
 from os import environ
 from person import Person
@@ -27,23 +26,23 @@ def demo_data() -> list[Person]:
 def db_data() -> list[Person]:
     if not db_host:
         return demo_data()
-    
+
     if not (db_user and db_pass):
         raise Exception("DB_USER and DB_PASS are not set")
-    
+
     cnx = mysql.connector.connect(**config)
-    result = []
+    query_result = []
     if cnx.is_connected():
         cursor = cnx.cursor()
         try:
             cursor.execute("SELECT * FROM people")
             for item in cursor:
-                result.append(Person(item[0], item[1], item[2], item[3], item[4], item[5]))
+                query_result.append(Person(item[0], item[1], item[2], item[3], item[4], item[5]))
         finally:
             if cnx.is_connected():
                 cursor.close()
                 cnx.close()
-    return result
+    return query_result
 
 def db_delete(id: int) -> Response:
     if not db_host:
@@ -55,7 +54,7 @@ def db_delete(id: int) -> Response:
         try:
             cursor.execute(f"DELETE FROM people WHERE id = {id}")
             cnx.commit()
-        except:
+        except Exception as e:
             status = 404
         finally:
             if cnx.is_connected():
@@ -75,7 +74,7 @@ def db_add(person: Person) -> Response:
             cursor.execute(f"INSERT INTO people (firstName, lastName, age, address, workplace) VALUES ('{person.first_name}', '{person.last_name}', {person.age}, '{person.address}', '{person.workplace}')")
             cnx.commit()
             personId = cursor.lastrowid
-        except:
+        except Exception as e:
             status = 404
         finally:
             if cnx.is_connected():
