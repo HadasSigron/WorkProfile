@@ -124,14 +124,14 @@ jobs:
 
       - name: Build Docker image
         run: |
-          TAG="${{ needs.build-test.outputs.tag }}"
+          TAG="${{ needs['build-test'].outputs.tag }}"
           IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}"
           docker build -t "$IMAGE:$TAG" .
           docker tag "$IMAGE:$TAG" "$IMAGE:latest"
 
       - name: Push Docker images
         run: |
-          TAG="${{ needs.build-test.outputs.tag }}"
+          TAG="${{ needs['build-test'].outputs.tag }}"
           IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}"
           docker push "$IMAGE:$TAG"
           docker push "$IMAGE:latest"
@@ -173,7 +173,7 @@ jobs:
 
       - name: Deploy Workprofile app (image from Docker Hub)
         run: |
-          TAG="${{ needs.build-test.outputs.tag }}"
+          TAG="${{ needs['build-test'].outputs.tag }}"
           IMAGE="docker.io/${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${TAG}"
           sed -i "s|IMAGE_PLACEHOLDER|${IMAGE}|g" k8s/workprofile-deployment.yaml
           kubectl apply -f k8s/workprofile-configmap.yaml
