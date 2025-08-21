@@ -61,7 +61,7 @@ jobs:
           docker-compose version
       - name: 'Build & Start full stack (docker-compose)'
         run: |
-          docker-compose -f docker-compose/docker-compose.yaml up -d --build
+          docker-compose -f docker-compose/docker-compose.yml up -d --build
           sleep 50
       - name: 'Smoke: "/" endpoint (compose -> 8080)'
         run: curl --fail http://localhost:8080/
@@ -73,13 +73,13 @@ jobs:
       - name: Compose logs (on failure)
         if: failure()
         run: |
-          docker-compose -f docker-compose/docker-compose.yaml ps
-          docker-compose -f docker-compose/docker-compose.yaml logs workprofile || true
-          docker-compose -f docker-compose/docker-compose.yaml logs mysql || true
+          docker-compose -f docker-compose/docker-compose.yml ps
+          docker-compose -f docker-compose/docker-compose.yml logs workprofile || true
+          docker-compose -f docker-compose/docker-compose.yml logs mysql || true
       - name: Compose cleanup
         if: always()
         run: |
-          docker-compose -f docker-compose/docker-compose.yaml down --volumes --remove-orphans
+          docker-compose -f docker-compose/docker-compose.yml down --volumes --remove-orphans
 
   push-image:
     needs:
