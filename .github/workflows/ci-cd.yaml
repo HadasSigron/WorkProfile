@@ -1,4 +1,4 @@
-לname: WorkProfile CI/CD Pipeline (Docker Hub)
+name: WorkProfile CI/CD Pipeline (Docker Hub)
 
 on:
   push:
