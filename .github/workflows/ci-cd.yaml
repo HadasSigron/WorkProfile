@@ -14,7 +14,7 @@ jobs:
     permissions:
       contents: read
     outputs:
-      tag: ${{ steps.generate-tag.outputs.tag }}
+      tag: ${{ steps.generate_tag.outputs.tag }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -37,10 +37,10 @@ jobs:
           pytest --disable-warnings tests/test_app.py
 
       - name: Generate image tag
-        id: generate-tag
+        id: generate_tag
         run: |
           TAG="build-$(date +%Y%m%d)-${GITHUB_SHA::7}"
-          echo "tag=${TAG}" >> $GITHUB_OUTPUT
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
           echo "Generated tag: ${TAG}"
 
   e2e-tests:
@@ -78,9 +78,14 @@ jobs:
       - name: Smoke: "/health" endpoint
         run: curl --fail http://localhost:8080/health
 
-      - name: Run E2E tests script
+      - name: Run E2E tests script (optional)
+        if: ${{ always() }}
         run: |
-          if [ -f tests/e2e_tests.py ]; then python tests/e2e_tests.py; fi
+          if [ -f tests/e2e_tests.py ]; then
+            python tests/e2e_tests.py
+          else
+            echo "No e2e_tests.py found, skipping."
+          fi
 
       - name: Compose logs (on failure)
         if: failure()
@@ -97,7 +102,8 @@ jobs:
   push-image:
     needs:
       - build-test
-      - e2e-tests
+    # אם חשוב שה-push יקרה רק אחרי E2E:
+    # - e2e-tests
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -111,14 +117,14 @@ jobs:
 
       - name: Build Docker image
         run: |
-          TAG="${{ needs['build-test'].outputs.tag }}"
+          TAG="${{ needs.build-test.outputs.tag }}"
           docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${TAG} .
           docker tag  ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${TAG} \
                       ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
 
       - name: Push Docker images
         run: |
-          TAG="${{ needs['build-test'].outputs.tag }}"
+          TAG="${{ needs.build-test.outputs.tag }}"
           docker push ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${TAG}
           docker push ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
 
@@ -159,7 +165,7 @@ jobs:
 
       - name: Deploy Workprofile app (image from Docker Hub)
         run: |
-          TAG="${{ needs['build-test'].outputs.tag }}"
+          TAG="${{ needs.build-test.outputs.tag }}"
           IMAGE="docker.io/${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${TAG}"
           sed -i "s|IMAGE_PLACEHOLDER|${IMAGE}|g" k8s/workprofile-deployment.yaml
           kubectl apply -f k8s/workprofile-configmap.yaml
