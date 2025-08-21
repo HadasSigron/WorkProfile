@@ -18,7 +18,7 @@ backend = environ.get('BACKEND') or "http://localhost"
 
 @app.route("/")
 def main():
-    app.logger.info("Entering main route")
+    app.logger.info("Entering main  route")
     data = db_data()
     return render_template("index.html.jinja", host_name=host_name, db_host=db_host, data=data, backend=backend)
 
