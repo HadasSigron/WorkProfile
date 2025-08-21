@@ -6,13 +6,15 @@ import pytest
 
 @pytest.fixture
 def app_module(monkeypatch):
-    # 1) מזייפים dbcontext לפני טעינת app.py
+    # 1) מזייפים dbcontext עם כל הפונקציות שה-app מייבא בזמן import
     fake_db = types.ModuleType("dbcontext")
     fake_db.health_check = lambda: True
     fake_db.db_data = lambda: [
         {"id": 1, "firstName": "Alice", "lastName": "Doe", "age": 30, "address": "X", "workplace": "Y"}
     ]
-    # נחזיר Response מתאים כפי שהאפליקציה מצפה
+    # placeholders שיאפשרו את ה-import הראשוני
+    fake_db.db_add = lambda person: None
+    fake_db.db_delete = lambda _id: None
     sys.modules["dbcontext"] = fake_db
 
     # 2) טוענים את app.py לפי נתיב (עוקף PYTHONPATH)
@@ -20,11 +22,11 @@ def app_module(monkeypatch):
     app_path = repo_root / "app.py"
     spec = importlib.util.spec_from_file_location("app", app_path)
     app_mod = importlib.util.module_from_spec(spec)
-    sys.modules["app"] = app_mod  # לאפשר ייבוא יחסי
+    sys.modules["app"] = app_mod
     assert spec.loader is not None
     spec.loader.exec_module(app_mod)
 
-    # 3) אחרי טעינת המודול, מחליפים את פונקציות ה-DB במוקים ספציפיים
+    # 3) אחרי טעינת המודול – מחליפים את הפונקציות למוקים שמחזירים Response אמיתי
     def fake_db_add(person):
         return app_mod.Response(status=201)
 
@@ -35,7 +37,7 @@ def app_module(monkeypatch):
     monkeypatch.setattr(app_mod, "db_delete", fake_db_delete, raising=True)
     monkeypatch.setattr(app_mod, "db_data", fake_db.db_data, raising=True)
 
-    # 4) לא מרנדרים Jinja בפועל
+    # 4) לא לרנדר Jinja בפועל
     monkeypatch.setattr(app_mod, "render_template", lambda *_a, **_k: "OK", raising=True)
 
     return app_mod
@@ -65,7 +67,6 @@ def test_add_ok(client):
 
 
 def test_add_missing_body_returns_404(client):
-    # אין JSON -> בקוד שלך זה מחזיר 404
     resp = client.post("/add", data="", content_type="application/json")
     assert resp.status_code == 404
 
