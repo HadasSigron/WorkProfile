@@ -2,7 +2,8 @@ services:
   nginx:
     image: nginx:1.27-alpine
     depends_on:
-      - app
+      app:
+        condition: service_healthy
     ports:
       - "8080:80" # http://localhost:8080
     volumes:
@@ -13,17 +14,26 @@ services:
     build:
       context: ..
       dockerfile: Dockerfile
-    image: workprofile:test        # תג לוקאלי לשימוש פנימי ב-compose
+    image: workprofile:test
     environment:
       - DB_HOST=mysql
       - DB_USER=flaskapp
       - DB_PASS=flaskapp
       - DB_NAME=exampleDb
     expose:
-      - "5000"                     # נגיש ל-nginx בתוך הרשת
-    depends_on:
-      - mysql
+      - "5000"
     networks: [backend]
+    depends_on:
+      mysql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import socket,sys; s=socket.socket(); s.settimeout(1); \
+try: s.connect(('127.0.0.1',5000)); s.close(); sys.exit(0) \
+except Exception: sys.exit(1)"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
 
   mysql:
     image: mysql:8.0
@@ -36,6 +46,12 @@ services:
       - ../init.sql:/docker-entrypoint-initdb.d/init.sql:ro
       - mysql_data:/var/lib/mysql
     networks: [backend]
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
 
 networks:
   frontend: {}
