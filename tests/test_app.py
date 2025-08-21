@@ -23,5 +23,7 @@ def test_home_page(client):
 def test_health_endpoint(client):
     response = client.get("/health")
     assert response.status_code == 200
-    assert b"Application: Healthy" in response.data
-    assert b"Database:" in response.data
+    data = response.get_json()
+    assert data is not None
+    assert data.get("status") == "healthy"
+    assert data.get("components", {}).get("application") == "running"
