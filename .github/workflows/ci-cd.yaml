@@ -158,3 +158,4 @@ jobs:
           sleep 20
           curl -f http://localhost:5000/ && curl -f http://localhost:5000/health
           kill $PF_PID
+
