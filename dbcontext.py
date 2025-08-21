@@ -54,7 +54,7 @@ def db_delete(id: int) -> Response:
         try:
             cursor.execute(f"DELETE FROM people WHERE id = {id}")
             cnx.commit()
-        except Exception as e:
+        except Exception:
             status = 404
         finally:
             if cnx.is_connected():
@@ -74,7 +74,7 @@ def db_add(person: Person) -> Response:
             cursor.execute(f"INSERT INTO people (firstName, lastName, age, address, workplace) VALUES ('{person.first_name}', '{person.last_name}', {person.age}, '{person.address}', '{person.workplace}')")
             cnx.commit()
             personId = cursor.lastrowid
-        except Exception as e:
+        except Exception:
             status = 404
         finally:
             if cnx.is_connected():
