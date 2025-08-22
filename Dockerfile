@@ -3,14 +3,15 @@ FROM python:3.9-slim AS builder
 WORKDIR /build
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
     gcc \
     default-libmysqlclient-dev \
     pkg-config \
-    build-essential \
  && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir --target=/python-packages -r requirements.txt
+RUN python -m pip install --upgrade pip \
+ && pip wheel --no-cache-dir -r requirements.txt -w /wheels
 
 
 FROM python:3.9-slim
@@ -19,11 +20,14 @@ WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libmariadb3 \
+    curl \
  && rm -rf /var/lib/apt/lists/*
 
 ENV PYTHONUNBUFFERED=1
 
-COPY --from=builder /python-packages /usr/local/lib/python3.9/site-packages
+COPY --from=builder /wheels /wheels
+COPY requirements.txt .
+RUN python -m pip install --no-cache-dir --no-index --find-links=/wheels -r requirements.txt
 
 COPY app.py dbcontext.py person.py ./
 COPY static/ static/
