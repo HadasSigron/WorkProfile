@@ -22,13 +22,10 @@ spec:
               containerPort: 3306
           envFrom:
             - secretRef:
-                name: mysql-secret   
+                name: mysql-secret
           readinessProbe:
             exec:
-              command:
-                - sh
-                - -c
-                - mysqladmin ping -h 127.0.0.1 -uroot -p$MYSQL_ROOT_PASSWORD --silent
+              command: ["sh","-c","mysqladmin ping -h 127.0.0.1 -uroot -p$MYSQL_ROOT_PASSWORD --silent"]
             initialDelaySeconds: 30
             periodSeconds: 5
             failureThreshold: 24

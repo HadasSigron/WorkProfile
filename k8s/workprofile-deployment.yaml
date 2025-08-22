@@ -2,6 +2,9 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: workprofile
+  namespace: workprofile
+  labels:
+    app: workprofile
 spec:
   replicas: 1
   selector:
@@ -12,13 +15,29 @@ spec:
       labels:
         app: workprofile
     spec:
+      imagePullSecrets:
+        - name: dockerhub
       initContainers:
         - name: wait-mysql
           image: mysql:8.0
-          command: ["bash", "-lc", "until mysqladmin ping -h mysql-service -uflaskapp -pflaskapp --silent; do echo waiting for mysql; sleep 2; done"]
+          env:
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-secret
+                  key: MYSQL_PASSWORD
+          command:
+            - sh
+            - -c
+            - |
+              until mysqladmin ping -h mysql-service -uflaskapp -p"$MYSQL_PASSWORD" --silent; do
+                echo "waiting for mysql...";
+                sleep 2;
+              done
       containers:
         - name: app
-          image: hadassigron1/workprofile:latest
+          image: IMAGE_PLACEHOLDER
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 5000
           env:

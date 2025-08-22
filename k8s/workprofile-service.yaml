@@ -2,6 +2,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: workprofile-service
+  namespace: workprofile
 spec:
   type: NodePort
   selector:
@@ -10,5 +11,5 @@ spec:
     - name: http
       port: 5000
       targetPort: 5000
-      nodePort: 30080   
+      nodePort: 30080
 
