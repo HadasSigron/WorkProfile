@@ -72,7 +72,7 @@ jobs:
           docker-compose -f docker-compose/docker-compose.yml up -d --build
           sleep 50
 
-      - name: Smoke: "/" endpoint
+      - name: Smoke: "/" endpoint (compose -> 8080)
         run: curl --fail http://localhost:8080/
 
       - name: Smoke: "/health" endpoint
@@ -86,6 +86,7 @@ jobs:
         if: failure()
         run: |
           docker-compose -f docker-compose/docker-compose.yml ps
+          docker-compose -f docker-compose/docker-compose.yml logs nginx || true
           docker-compose -f docker-compose/docker-compose.yml logs app || true
           docker-compose -f docker-compose/docker-compose.yml logs mysql || true
 
@@ -139,22 +140,23 @@ jobs:
           kubectl cluster-info
           kubectl get nodes
 
-      - name: Create namespace (idempotent)
+      - name: Create namespace
         run: |
-          kubectl create namespace workprofile || true
+          kubectl create namespace workprofile --dry-run=client -o yaml | kubectl apply -f -
 
       - name: Create imagePullSecret (Docker Hub)
         run: |
           kubectl -n workprofile create secret docker-registry dockerhub \
             --docker-server=https://index.docker.io/v1/ \
-            --docker-username=${{ secrets.DOCKERHUB_USERNAME }} \
-            --docker-password=${{ secrets.DOCKERHUB_TOKEN }} \
-            --docker-email=example@example.com || true
+            --docker-username="${{ secrets.DOCKERHUB_USERNAME }}" \
+            --docker-password="${{ secrets.DOCKERHUB_TOKEN }}" \
+            --docker-email="example@example.com"
 
       - name: Deploy MySQL infra
         run: |
           kubectl -n workprofile apply -f k8s/mysql-secret.yaml
-          kubectl -n workprofile create configmap mysql-initdb-config --from-file=init.sql=init.sql -o yaml --dry-run=client | kubectl -n workprofile apply -f -
+          kubectl -n workprofile create configmap mysql-initdb-config \
+            --from-file=init.sql=init.sql -o yaml --dry-run=client | kubectl apply -f -
           kubectl -n workprofile apply -f k8s/mysql-statefulset.yaml
           kubectl -n workprofile apply -f k8s/mysql-service.yaml
           kubectl -n workprofile wait --for=condition=ready pod/mysql-0 --timeout=300s
