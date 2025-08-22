@@ -18,9 +18,10 @@ FROM python:3.9-slim
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    default-libmysqlclient-dev \
-    curl \
+    libmariadb3 \
  && rm -rf /var/lib/apt/lists/*
+
+ENV PYTHONUNBUFFERED=1
 
 COPY --from=builder /python-packages /usr/local/lib/python3.9/site-packages
 
@@ -29,5 +30,5 @@ COPY static/ static/
 COPY templates/ templates/
 
 EXPOSE 5000
-
 ENTRYPOINT ["python", "app.py"]
+
