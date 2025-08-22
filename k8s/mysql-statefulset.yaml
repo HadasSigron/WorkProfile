@@ -14,6 +14,7 @@ spec:
       labels:
         app: mysql
     spec:
+      terminationGracePeriodSeconds: 30
       containers:
         - name: mysql
           image: mysql:8.0
@@ -25,7 +26,10 @@ spec:
                 name: mysql-secret
           readinessProbe:
             exec:
-              command: ["sh","-c","mysqladmin ping -h 127.0.0.1 -uroot -p$MYSQL_ROOT_PASSWORD --silent"]
+              command:
+                - sh
+                - -c
+                - mysqladmin ping -h 127.0.0.1 -uroot -p$MYSQL_ROOT_PASSWORD --silent
             initialDelaySeconds: 30
             periodSeconds: 5
             failureThreshold: 24
@@ -47,16 +51,16 @@ spec:
             - name: mysql-init
               mountPath: /docker-entrypoint-initdb.d
               readOnly: true
+          terminationMessagePolicy: FallbackToLogsOnError
       volumes:
         - name: mysql-init
           configMap:
-            name: mysql-init
+            name: mysql-initdb-config
   volumeClaimTemplates:
     - metadata:
         name: data
       spec:
         accessModes: ["ReadWriteOnce"]
-        storageClassName: local-path
         resources:
           requests:
             storage: 2Gi
