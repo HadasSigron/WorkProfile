@@ -10,9 +10,7 @@ log_handler = logging.StreamHandler()
 log_handler.setLevel(logging.INFO)
 app.logger.addHandler(log_handler)
 
-host_name = environ.get("HOSTNAME")
-if not health_check():
-    host_name = "no_host"
+host_name = environ.get("HOSTNAME","unknown")
 db_host = environ.get('DB_HOST')
 backend = environ.get('BACKEND') or "http://localhost"
 
