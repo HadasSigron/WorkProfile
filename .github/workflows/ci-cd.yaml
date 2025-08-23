@@ -140,7 +140,8 @@ jobs:
           kubectl -n workprofile create configmap mysql-initdb-config --from-file=init.sql=init.sql -o yaml --dry-run=client | kubectl apply -f -
           kubectl -n workprofile apply -f k8s/mysql-statefulset.yaml
           kubectl -n workprofile apply -f k8s/mysql-service.yaml
-          kubectl -n workprofile wait --for=condition=ready pod/mysql-0 --timeout=300s
+          kubectl -n workprofile rollout status statefulset/mysql --timeout=360s
+          kubectl -n workprofile get pods,svc,statefulset -l app=mysql
           kubectl -n workprofile get pods,svc,statefulset -l app=mysql
           kubectl -n workprofile get pvc
       - name: Deploy Workprofile app (image from Docker Hub)

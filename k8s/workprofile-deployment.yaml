@@ -36,7 +36,7 @@ spec:
               done
       containers:
         - name: app
-          image: IMAGE_PLACEHOLDER
+          image: docker.io/hadassigron1/workprofile:latest
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 5000
