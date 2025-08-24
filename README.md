@@ -17,7 +17,7 @@ The CI/CD process ensures that every change goes through testing, image building
 
 - **build-test**: Runs linting + unit tests, builds Docker image, generates semantic tag.  
 - **e2e-tests**: Runs integration tests using Docker Compose (full stack with Nginx + Flask + MySQL).  
-- **push-image**: Pushes Docker image to the container registry.  
+- **push-image**: Pushes Docker image to Docker Hub.  
 - **deploy-k8s**: Deploys MySQL + WorkProfile on Kubernetes, validates health checks, ensures readiness.
 
 ![CI/CD Pipeline](docs/architecture-pipeline.png)
@@ -109,6 +109,4 @@ kubectl -n workprofile get svc workprofile-service
 
 ---
 
-## Contribution
 
-Contributions are welcome! Please open issues or submit pull requests on GitHub.
