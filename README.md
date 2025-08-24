@@ -1,162 +1,114 @@
 # WorkProfile Application
 
 ## Overview
-WorkProfile is a production-ready multi-tier web application built with **Flask** and **MySQL**.  
-It is designed for deployment on **Kubernetes**, with a complete **CI/CD pipeline** that automates:
-- Building and testing the application  
-- Pushing Docker images to **GitHub Container Registry (GHCR)**  
-- Deploying to Kubernetes clusters (kind / Killercoda environments)  
+
+WorkProfile is a production-ready multi-tier web application built with
+**Flask** and **MySQL**.  
+It is designed for deployment on **Kubernetes** with a full **CI/CD
+pipeline** using GitHub Actions.  
+The project supports both local development (via Docker Compose) and
+cloud-native deployment.
 
 ---
 
-## Architecture
+## CI/CD Pipeline
 
-### CI/CD Pipeline
-The GitHub Actions pipeline covers:
-1. **build-test** → Install dependencies, run linting & unit tests, create a semantic image tag  
-2. **e2e-tests** → Start full stack with Docker Compose, run smoke tests and Python E2E tests  
-3. **push-image** → Build & push Docker image to GHCR (latest + semantic version)  
-4. **deploy-k8s** → Create a kind cluster, deploy MySQL + WorkProfile, verify resources, and run connectivity tests  
+The CI/CD process ensures that every change goes through testing, image building, and automated deployment:
 
-📷 *CI/CD Pipeline Diagram*  
-![CI CD Pipeline WorkProfile](docs/images/cicd-pipeline.png)
+- **build-test**: Runs linting + unit tests, builds Docker image, generates semantic tag.  
+- **e2e-tests**: Runs integration tests using Docker Compose (full stack with Nginx + Flask + MySQL).  
+- **push-image**: Pushes Docker image to the container registry.  
+- **deploy-k8s**: Deploys MySQL + WorkProfile on Kubernetes, validates health checks, ensures readiness.
 
----
-
-### Three-Tier Architecture (Docker Compose)
-Local testing uses **docker-compose**, which runs:
-- **Nginx** (frontend proxy)  
-- **Flask Application** (backend API)  
-- **MySQL** (database)  
-
-📷 *Docker Compose Architecture*  
-![docker-compose WorkProfile](docs/images/docker-architecture.png)
+![CI/CD Pipeline](docs/architecture-pipeline.png)
 
 ---
 
-### Kubernetes Deployment
-On Kubernetes, the system consists of:
-- **MySQL StatefulSet** (with PersistentVolumeClaims for data durability)  
-- **Secrets** (database credentials)  
-- **ConfigMaps** (init SQL + app config)  
-- **WorkProfile Deployment** (Flask app with readiness/liveness probes)  
-- **Services** (ClusterIP for MySQL, NodePort for WorkProfile)  
+## Architecture in Context
 
-📷 *Kubernetes Deployment Architecture*  
-![Kubernetes WorkProfile](docs/images/k8s-architecture.png)
+When code passes CI/CD, the application can be deployed either locally with **Docker Compose** or on a **Kubernetes cluster**.
 
----
+### Docker Compose (local development)
 
-## Components
+![Architecture - Docker Compose](docs/architecture-compose.png)
 
-### WorkProfile Flask Application
-- Python 3.10 backend with REST endpoints  
-- Unit and end-to-end (E2E) tests  
-- Configurable through Kubernetes ConfigMaps  
+- Runs **Nginx + Flask app + MySQL** locally.
+- Good for development and E2E testing.
+- Accessible at [http://localhost:8080](http://localhost:8080).
 
-### MySQL StatefulSet
-- Persistent 2Gi storage  
-- Credentials stored securely in Secrets  
-- Initialized via ConfigMap (init.sql)  
+### Kubernetes (production-like)
 
-### Docker & GHCR
-- Docker images built and tagged (e.g. `v1.0.27`)  
-- Images pushed to GHCR for versioning and distribution  
+![Architecture - Kubernetes](docs/architecture-k8s.png)
 
-### Kubernetes Deployment
-- Deployments + StatefulSets with resource limits  
-- Health checks with liveness/readiness probes  
-- NodePort service for external access  
+- MySQL runs as a **StatefulSet** with persistent volume claims (PVC).
+- WorkProfile runs as a **Deployment** with readiness & liveness probes.
+- Services expose MySQL internally and WorkProfile externally (NodePort, e.g. `30080`).
+- Configurations via ConfigMaps and credentials via Secrets.
 
 ---
 
-## Setup and Usage
+## Application Screenshots
 
-### Prerequisites
-- A Kubernetes cluster (or Killercoda environment)  
-- `kubectl` CLI installed and configured  
-- Docker + Docker Compose (for local testing)  
-- GitHub repository with secrets:  
-  - `GITHUB_TOKEN`  
-  - `GHCR_TOKEN` (for pushing images to GHCR)  
+Below are example screenshots of the WorkProfile application in action:
+
+![UI Screenshot 1](docs/ui-1.png)  
+![UI Screenshot 3](docs/ui-3.png)  
+![UI Screenshot 2](docs/ui-2.png)  
 
 ---
 
-## Running Locally (Docker Compose)
+## Running Locally with Docker Compose
 
 ```bash
-# 1. Clone the repository
+# Clone the repository
 git clone https://github.com/HadasSigron/WorkProfile.git
 cd WorkProfile
 
-# 2. Start full stack (Flask + MySQL + Nginx)
+# Start the stack (Nginx + Flask + MySQL)
 docker-compose -f docker-compose/docker-compose.yml up -d --build
 
-# 3. Access the app locally
-http://localhost:8080
-
-# 4. Run tests
-pytest tests/e2e_tests.py
+# Access the app
+http://localhost:8080/
 ```
 
 ---
 
-## Manual Deployment to Kubernetes (Killercoda Example)
+## Deployment on Kubernetes (Killercoda or local cluster)
 
 ```bash
-# 0. Clean start
-kubectl delete namespace workprofile --ignore-not-found
+# Create namespace
 kubectl create namespace workprofile
 
-# 1. Clone repository
-git clone https://github.com/HadasSigron/WorkProfile.git
-cd WorkProfile
-
-# 2. Deploy MySQL
+# MySQL secrets + init.sql
 kubectl -n workprofile apply -f k8s/mysql-secret.yaml
 kubectl -n workprofile create configmap mysql-initdb-config   --from-file=init.sql=init.sql   -o yaml --dry-run=client | kubectl apply -n workprofile -f -
+
+# MySQL StatefulSet + Services
 kubectl -n workprofile apply -f k8s/mysql-statefulset.yaml
 kubectl -n workprofile apply -f k8s/mysql-service.yaml
-kubectl -n workprofile rollout status statefulset/mysql --timeout=300s
+kubectl -n workprofile rollout status statefulset/mysql --timeout=360s
 
-# 3. Deploy WorkProfile application
+# WorkProfile application (ConfigMap + Deployment + Service)
 kubectl -n workprofile apply -f k8s/workprofile-configmap.yaml
 kubectl -n workprofile apply -f k8s/workprofile-deployment.yaml
 kubectl -n workprofile apply -f k8s/workprofile-service.yaml
 kubectl -n workprofile rollout status deployment/workprofile --timeout=300s
 
-# 4. Verify services and pods
-kubectl -n workprofile get pods,svc -o wide
-
-# 5. Access the application (NodePort 30080)
-# In Killercoda: http://<session-id>.spchr.killercoda.com:30080
-
-# 6. Health check from inside cluster
-kubectl -n workprofile run curl-$RANDOM --rm -it --image=curlimages/curl --restart=Never --   curl -sf http://workprofile-service:5000/health
+# Get NodePort and access via Killercoda Traffic Port (e.g., 30080)
+kubectl -n workprofile get svc workprofile-service
 ```
 
 ---
 
-## Screenshots
+## Notes
 
-📷 *1. Killercoda Deployment Terminal*  
-![Killercoda Terminal](docs/images/kc-terminal.png)
-
-📷 *2. Application Homepage*  
-![App Home](docs/images/app-home.png)
-
-📷 *3. Application Add Form*  
-![App Add Form](docs/images/app-add.png)
-
----
-
-## Additional Notes
-- Semantic versioning: `v1.0.<run_number>`  
-- Credentials always stored in **Secrets**, never in plain text  
-- Resource limits ensure predictable performance  
-- Health checks guarantee resiliency and self-healing  
+- Secrets are managed securely with Kubernetes Secrets.  
+- Configurations are stored in ConfigMaps.  
+- Health probes (liveness & readiness) ensure reliability.  
+- Resource limits provide predictable scaling.  
 
 ---
 
 ## Contribution
-For issues or contributions, please open a PR or issue on GitHub.
+
+Contributions are welcome! Please open issues or submit pull requests on GitHub.
